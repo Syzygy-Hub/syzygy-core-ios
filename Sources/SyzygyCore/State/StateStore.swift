@@ -1,19 +1,101 @@
 // MARK: - State Management
-// Reactive state stores, observable properties, state reducers, and selectors.
+// Reactive state stores with reducers, selectors, and AsyncStream-based observation.
 
-import SyzygyFoundation
-
-/// A reactive store that holds state and notifies observers on change.
-public final class StateStore<State: Sendable>: @unchecked Sendable {
-    // TODO: state storage, reduce, select, observe
-    public init(initial: State) {
-        _ = initial
-    }
-}
+import Foundation
 
 /// Reduces the current state with an action to produce a new state.
 public protocol StateReducer<State, Action> {
     associatedtype State
     associatedtype Action
-    func reduce(_ state: State, action: Action) -> State
+    /// Produces a new state by applying the action to the current state.
+    func reduce(state: State, action: Action) -> State
+}
+
+/// A reactive store that holds immutable state, dispatches actions through a reducer,
+/// and provides observation via `AsyncStream`.
+public final class StateStore<State: Sendable, Action: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _state: State
+    private let reducer: @Sendable (State, Action) -> State
+    private var continuations: [UUID: AsyncStream<State>.Continuation] = [:]
+
+    /// The current state snapshot.
+    public var currentState: State {
+        lock.lock()
+        defer { lock.unlock() }
+        return _state
+    }
+
+    /// Creates a store with an initial state and a reducer function.
+    /// - Parameters:
+    ///   - initial: The initial state value.
+    ///   - reducer: A pure function that produces new state from state + action.
+    public init(initial: State, reducer: @Sendable @escaping (State, Action) -> State) {
+        self._state = initial
+        self.reducer = reducer
+    }
+
+    /// Creates a store using a `StateReducer` conformance.
+    /// - Parameters:
+    ///   - initial: The initial state value.
+    ///   - reducer: A `StateReducer` instance.
+    public convenience init<R: StateReducer>(initial: State, reducer: R) where R.State == State, R.Action == Action, R: Sendable {
+        self.init(initial: initial) { state, action in
+            reducer.reduce(state: state, action: action)
+        }
+    }
+
+    /// Dispatches an action through the reducer, updating the state and notifying observers.
+    /// - Parameter action: The action to dispatch.
+    public func dispatch(_ action: Action) {
+        lock.lock()
+        _state = reducer(_state, action)
+        let newState = _state
+        let conts = continuations
+        lock.unlock()
+        for (_, cont) in conts {
+            cont.yield(newState)
+        }
+    }
+
+    /// Returns an `AsyncStream` that emits the current state immediately, then every subsequent state change.
+    /// - Returns: An `AsyncStream` of state values.
+    public func observe() -> AsyncStream<State> {
+        let id = UUID()
+        let currentState = self.currentState
+        return AsyncStream { continuation in
+            continuation.yield(currentState)
+            self.lock.lock()
+            self.continuations[id] = continuation
+            self.lock.unlock()
+            continuation.onTermination = { @Sendable _ in
+                self.lock.lock()
+                self.continuations.removeValue(forKey: id)
+                self.lock.unlock()
+            }
+        }
+    }
+
+    /// Returns an `AsyncStream` that emits derived values from state, de-duplicating consecutive equal values.
+    /// - Parameter selector: A function that extracts a derived value from the state.
+    /// - Returns: An `AsyncStream` of the selected values, only emitting when the value changes.
+    public func select<T: Equatable & Sendable>(_ selector: @Sendable @escaping (State) -> T) -> AsyncStream<T> {
+        let source = observe()
+        return AsyncStream { continuation in
+            let task = Task {
+                var last: T?
+                for await state in source {
+                    let value = selector(state)
+                    if value != last {
+                        last = value
+                        continuation.yield(value)
+                    }
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
+            }
+        }
+    }
 }
