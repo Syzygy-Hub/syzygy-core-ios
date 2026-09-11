@@ -46,15 +46,35 @@ public final class ConfigRegistry: @unchecked Sendable {
     }
 
     /// Returns the value for a key: environment-specific value > global value > default.
+    ///
+    /// If a stored value cannot be cast to `V`, a diagnostic message is printed and
+    /// resolution falls through to the next tier. This prevents silent wrong-type
+    /// values from being returned while avoiding a crash in production.
     /// - Parameter key: The configuration key to look up.
     /// - Returns: The resolved value.
     public func get<V>(_ key: ConfigKey<V>) -> V {
         lock.lock()
         defer { lock.unlock() }
-        if let envVal = envValues[_environment]?[key.name] as? V {
+        if let rawEnv = envValues[_environment]?[key.name] {
+            guard let envVal = rawEnv as? V else {
+                print("[SyzygyCore] ConfigRegistry: type mismatch for env-specific value of '\(key.name)' in \(_environment) — stored \(type(of: rawEnv)), expected \(V.self). Falling through.")
+                // fall through to global
+                if let rawGlobal = globalValues[key.name] {
+                    guard let global = rawGlobal as? V else {
+                        print("[SyzygyCore] ConfigRegistry: type mismatch for global value of '\(key.name)' — stored \(type(of: rawGlobal)), expected \(V.self). Using default.")
+                        return key.defaultValue
+                    }
+                    return global
+                }
+                return key.defaultValue
+            }
             return envVal
         }
-        if let global = globalValues[key.name] as? V {
+        if let rawGlobal = globalValues[key.name] {
+            guard let global = rawGlobal as? V else {
+                print("[SyzygyCore] ConfigRegistry: type mismatch for global value of '\(key.name)' — stored \(type(of: rawGlobal)), expected \(V.self). Using default.")
+                return key.defaultValue
+            }
             return global
         }
         return key.defaultValue

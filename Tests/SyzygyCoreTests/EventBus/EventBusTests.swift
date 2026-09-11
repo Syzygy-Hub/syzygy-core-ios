@@ -2,33 +2,25 @@ import Testing
 import Foundation
 @testable import SyzygyCore
 
-/// Thread-safe accumulator for test assertions.
-private final class Box<T: Sendable>: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _value: T
-    init(_ value: T) { _value = value }
-    var value: T { lock.lock(); defer { lock.unlock() }; return _value }
-    func mutate(_ block: (inout T) -> Void) { lock.lock(); block(&_value); lock.unlock() }
-}
-
 @Suite("Event Bus Tests")
 struct EventBusTests {
 
     struct TestEvent: Sendable { let value: Int }
     struct OtherEvent: Sendable { let name: String }
 
-    @Test func publishDeliversToSubscribers() {
+    @Test func publishDeliversToSubscribers() async {
         let bus = EventBus()
         let received = Box<[Int]>([])
         let token = bus.subscribe(to: TestEvent.self) { event in
             received.mutate { $0.append(event.value) }
         }
         bus.publish(TestEvent(value: 42))
+        await Task.yield()
         #expect(received.value == [42])
         _ = token
     }
 
-    @Test func subscriberOnlyReceivesMatchingType() {
+    @Test func subscriberOnlyReceivesMatchingType() async {
         let bus = EventBus()
         let testEvents = Box<[Int]>([])
         let otherEvents = Box<[String]>([])
@@ -36,31 +28,36 @@ struct EventBusTests {
         let t2 = bus.subscribe(to: OtherEvent.self) { event in otherEvents.mutate { $0.append(event.name) } }
         bus.publish(TestEvent(value: 1))
         bus.publish(OtherEvent(name: "hello"))
+        await Task.yield()
         #expect(testEvents.value == [1])
         #expect(otherEvents.value == ["hello"])
         _ = (t1, t2)
     }
 
-    @Test func cancelStopsDelivery() {
+    @Test func cancelStopsDelivery() async {
         let bus = EventBus()
         let received = Box<[Int]>([])
         let token = bus.subscribe(to: TestEvent.self) { event in received.mutate { $0.append(event.value) } }
         bus.publish(TestEvent(value: 1))
+        await Task.yield()
         token.cancel()
         bus.publish(TestEvent(value: 2))
+        await Task.yield()
         #expect(received.value == [1])
         #expect(token.isCancelled)
     }
 
-    @Test func tokenDeinitCancelsSubscription() {
+    @Test func tokenDeinitCancelsSubscription() async {
         let bus = EventBus()
         let received = Box<[Int]>([])
         do {
             let token = bus.subscribe(to: TestEvent.self) { event in received.mutate { $0.append(event.value) } }
             bus.publish(TestEvent(value: 1))
+            await Task.yield()
             _ = token
         }
         bus.publish(TestEvent(value: 2))
+        await Task.yield()
         #expect(received.value == [1])
     }
 }

@@ -85,6 +85,11 @@ public actor Container {
             return typed
 
         case .scoped:
+            // Scoped instances are cached within this container's own scopedCache.
+            // When resolve() falls through to the parent (no local registration), the parent's
+            // scoped cache is used — so a scoped type resolved through a parent caches in the
+            // parent's scope, not the child's. Two independent child containers therefore each
+            // get their own scoped instance, because each has its own scopedCache.
             if let cached = scopedCache[key] as? T {
                 return cached
             }
@@ -113,5 +118,16 @@ public actor Container {
     /// - Returns: A new child `Container`.
     public func createChildContainer() -> Container {
         Container(parent: self)
+    }
+
+    /// Removes all registrations and clears all caches, resetting the container to its initial state.
+    ///
+    /// After this call, any subsequent `resolve` call will throw `ContainerError.notRegistered`
+    /// unless new registrations are added.
+    public func resetRegistrations() {
+        registrations = [:]
+        singletonCache = [:]
+        scopedCache = [:]
+        resolving = []
     }
 }

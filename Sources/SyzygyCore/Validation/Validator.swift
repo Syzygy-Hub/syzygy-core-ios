@@ -80,10 +80,24 @@ public struct MaxLengthValidator: FieldValidator, Sendable {
 }
 
 /// Validates that a string looks like an email address.
+///
+/// When `strict` is `false` (the default), uses a well-formed heuristic pattern. Not RFC 5321 compliant.
+/// When `strict` is `true`, additionally enforces RFC 5321 rules:
+/// - Local part (before `@`) ≤ 64 characters
+/// - Total length ≤ 255 characters
+/// - No consecutive dots (`..`) anywhere in the address
+/// - Local part cannot start or end with a dot
 public struct EmailValidator: FieldValidator, Sendable {
     private let message: String
+    private let strict: Bool
     /// Creates an email validator.
-    public init(message: String = "Invalid email address") { self.message = message }
+    /// - Parameters:
+    ///   - strict: When `true`, applies RFC 5321 strict validation rules (default: `false`).
+    ///   - message: The error message returned on failure.
+    public init(strict: Bool = false, message: String = "Invalid email address") {
+        self.strict = strict
+        self.message = message
+    }
     public func validate(_ value: String) -> ValidationResult {
         let parts = value.split(separator: "@", omittingEmptySubsequences: false)
         guard parts.count == 2,
@@ -92,6 +106,17 @@ public struct EmailValidator: FieldValidator, Sendable {
               !parts[1].hasPrefix("."),
               !parts[1].hasSuffix(".") else {
             return .invalid(messages: [message])
+        }
+        if strict {
+            let local = String(parts[0])
+            // Local part max 64 characters
+            guard local.count <= 64 else { return .invalid(messages: [message]) }
+            // Total length max 255 characters
+            guard value.count <= 255 else { return .invalid(messages: [message]) }
+            // No consecutive dots anywhere
+            guard !value.contains("..") else { return .invalid(messages: [message]) }
+            // Local part cannot start or end with a dot
+            guard !local.hasPrefix("."), !local.hasSuffix(".") else { return .invalid(messages: [message]) }
         }
         return .valid
     }
@@ -107,8 +132,11 @@ public struct RegexValidator: FieldValidator, Sendable {
         self.message = message
     }
     public func validate(_ value: String) -> ValidationResult {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else {
-            return .invalid(messages: ["Invalid regex pattern"])
+        let regex: NSRegularExpression
+        do {
+            regex = try NSRegularExpression(pattern: pattern)
+        } catch {
+            preconditionFailure("RegexValidator: invalid pattern '\(pattern)': \(error)")
         }
         let range = NSRange(value.startIndex..., in: value)
         return regex.firstMatch(in: value, range: range) != nil

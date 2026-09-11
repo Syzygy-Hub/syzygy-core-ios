@@ -24,8 +24,18 @@ public enum LogLevel: Int, Sendable, Comparable, CaseIterable {
 
 /// A destination that receives formatted log messages with metadata.
 public protocol LogDestination: Sendable {
-    /// Writes a log message at the given level with associated metadata.
-    func write(message: String, level: LogLevel, metadata: [String: String])
+    /// Writes a log message at the given level with associated metadata, optional timestamp, and optional error.
+    ///
+    /// Default implementations of `timestamp` and `error` are provided so existing conformers
+    /// only need to add the new parameters if they want to handle them.
+    func write(message: String, level: LogLevel, metadata: [String: String], timestamp: SyzygyFoundation.SyzygyTimestamp?, error: (any Error)?)
+}
+
+public extension LogDestination {
+    /// Convenience overload — forwards to the full signature with nil timestamp and error.
+    func write(message: String, level: LogLevel, metadata: [String: String]) {
+        write(message: message, level: level, metadata: metadata, timestamp: nil, error: nil)
+    }
 }
 
 /// Console log destination that prints to stdout.
@@ -33,10 +43,13 @@ public struct ConsoleLogDestination: LogDestination, Sendable {
     /// Creates a console log destination.
     public init() {}
 
-    /// Writes a formatted log message to the console.
-    public func write(message: String, level: LogLevel, metadata: [String: String]) {
+    /// Writes a formatted log message to the console, including timestamp and error when present.
+    public func write(message: String, level: LogLevel, metadata: [String: String], timestamp: SyzygyFoundation.SyzygyTimestamp?, error: (any Error)?) {
+        let tsString = timestamp.map { " ts=\($0.millisecondsSinceEpoch)" } ?? ""
         let metaString = metadata.isEmpty ? "" : " \(metadata)"
-        print("[\(level)] \(message)\(metaString)")
+        var line = "[\(level)]\(tsString) \(message)\(metaString)"
+        if let err = error { line += " error=\(err)" }
+        print(line)
     }
 }
 
@@ -68,12 +81,14 @@ public final class Logger: @unchecked Sendable {
     ///   - level: The severity level of the message.
     ///   - message: The log message.
     ///   - metadata: Optional key-value metadata to attach.
-    public func log(_ level: LogLevel, _ message: String, metadata: [String: String] = [:]) {
+    ///   - timestamp: Optional timestamp for the log entry.
+    ///   - error: Optional underlying error to attach.
+    public func log(_ level: LogLevel, _ message: String, metadata: [String: String] = [:], timestamp: SyzygyFoundation.SyzygyTimestamp? = nil, error: (any Error)? = nil) {
         lock.lock()
         let dests = destinations
         lock.unlock()
         for entry in dests where level >= entry.minLevel {
-            entry.destination.write(message: message, level: level, metadata: metadata)
+            entry.destination.write(message: message, level: level, metadata: metadata, timestamp: timestamp, error: error)
         }
     }
 }
@@ -98,6 +113,6 @@ extension Logger: LoggerProtocol {
         case .error:    coreLevel = .error
         case .critical: coreLevel = .critical
         }
-        log(coreLevel, entry.message, metadata: entry.metadata)
+        log(coreLevel, entry.message, metadata: entry.metadata, timestamp: entry.timestamp, error: entry.error)
     }
 }

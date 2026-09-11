@@ -2,6 +2,11 @@
 // Foreground/background state tracking, lifecycle observers, lifecycle-aware scoping.
 
 import Foundation
+import SyzygyFoundation
+
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Application lifecycle state.
 public enum AppLifecycleState: Sendable, Equatable {
@@ -22,6 +27,10 @@ public final class AppLifecycleTracker: @unchecked Sendable {
     private let lock = NSLock()
     private var _state: AppLifecycleState = .inactive
     private var observers: [ObjectIdentifier: WeakObserver] = [:]
+    private var _notificationTokens: [Any] = []
+
+    /// The timestamp of the last lifecycle transition, or `nil` if no transition has occurred.
+    public private(set) var lastTransitionAt: SyzygyTimestamp?
 
     private struct WeakObserver {
         weak var value: (any AppLifecycleObserver)?
@@ -36,6 +45,33 @@ public final class AppLifecycleTracker: @unchecked Sendable {
 
     /// Creates a lifecycle tracker.
     public init() {}
+
+#if canImport(UIKit)
+    /// Creates an `AppLifecycleTracker` wired to `UIApplication` notifications.
+    ///
+    /// Observation tokens are kept alive on the returned tracker for its lifetime.
+    /// - Parameter notificationCenter: The notification center to observe (default: `.default`).
+    /// - Returns: A configured `AppLifecycleTracker`.
+    public static func fromNotificationCenter(_ notificationCenter: NotificationCenter = .default) -> AppLifecycleTracker {
+        let tracker = AppLifecycleTracker()
+        let pairs: [(Notification.Name, AppLifecycleState)] = [
+            (UIApplication.didBecomeActiveNotification,    .active),
+            (UIApplication.willResignActiveNotification,   .inactive),
+            (UIApplication.didEnterBackgroundNotification, .background),
+            (UIApplication.willEnterForegroundNotification,.inactive),
+            (UIApplication.willTerminateNotification,      .terminated),
+        ]
+        let tokens: [Any] = pairs.map { (name, state) in
+            notificationCenter.addObserver(forName: name, object: nil, queue: nil) { [weak tracker] _ in
+                tracker?.transition(to: state)
+            }
+        }
+        tracker.lock.lock()
+        tracker._notificationTokens = tokens
+        tracker.lock.unlock()
+        return tracker
+    }
+#endif
 
     /// Adds an observer (held weakly) that will be notified of state changes.
     /// - Parameter observer: The observer to add.
@@ -60,6 +96,7 @@ public final class AppLifecycleTracker: @unchecked Sendable {
     public func transition(to state: AppLifecycleState) {
         lock.lock()
         _state = state
+        lastTransitionAt = SyzygyTimestamp.now()
         // Clean up nil references and collect live observers
         var liveObservers: [any AppLifecycleObserver] = []
         observers = observers.filter { _, weak in weak.value != nil }

@@ -59,15 +59,19 @@ public final class StateStore<State: Sendable, Action: Sendable>: @unchecked Sen
     }
 
     /// Returns an `AsyncStream` that emits the current state immediately, then every subsequent state change.
+    ///
+    /// The continuation is registered **inside** the lock before the initial state is yielded,
+    /// so any concurrent `dispatch(_:)` between registering and yielding is not lost — it will
+    /// either be captured in the initial yield or arrive immediately after via the continuation.
     /// - Returns: An `AsyncStream` of state values.
     public func observe() -> AsyncStream<State> {
         let id = UUID()
-        let currentState = self.currentState
         return AsyncStream { continuation in
-            continuation.yield(currentState)
             self.lock.lock()
             self.continuations[id] = continuation
+            let snapshot = self._state
             self.lock.unlock()
+            continuation.yield(snapshot)
             continuation.onTermination = { @Sendable _ in
                 self.lock.lock()
                 self.continuations.removeValue(forKey: id)

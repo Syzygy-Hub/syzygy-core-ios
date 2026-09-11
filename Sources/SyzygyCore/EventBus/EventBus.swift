@@ -21,7 +21,9 @@ public final class EventBus: @unchecked Sendable {
         lock.unlock()
         for (_, handler) in entries {
             if let typed = handler as? @Sendable (E) -> Void {
-                typed(event)
+                Task {
+                    typed(event)
+                }
             }
         }
     }
