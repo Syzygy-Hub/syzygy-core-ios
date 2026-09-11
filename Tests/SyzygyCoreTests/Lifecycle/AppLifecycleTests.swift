@@ -1,5 +1,10 @@
 import Testing
+import Foundation
 @testable import SyzygyCore
+
+#if canImport(UIKit)
+import UIKit
+#endif
 
 @Suite("App Lifecycle Tests")
 struct AppLifecycleTests {
@@ -48,4 +53,29 @@ struct AppLifecycleTests {
         tracker.transition(to: .background)
         #expect(tracker.currentState == .background)
     }
+
+    // MARK: - FIX 10: iOS lifecycle timestamps
+
+    @Test func lastTransitionAtIsNilBeforeAnyTransition() {
+        let tracker = AppLifecycleTracker()
+        #expect(tracker.lastTransitionAt == nil)
+    }
+
+    @Test func lastTransitionAtIsSetAfterTransition() {
+        let tracker = AppLifecycleTracker()
+        tracker.transition(to: .active)
+        #expect(tracker.lastTransitionAt != nil)
+    }
+
+    // MARK: - ITEM 4: fromNotificationCenter factory
+
+#if canImport(UIKit)
+    @Test func fromNotificationCenterWiresLifecycleNotifications() {
+        let center = NotificationCenter()
+        let tracker = AppLifecycleTracker.fromNotificationCenter(center)
+        #expect(tracker.currentState == .inactive)
+        center.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        #expect(tracker.currentState == .active)
+    }
+#endif
 }

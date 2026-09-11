@@ -2,15 +2,6 @@ import Testing
 import Foundation
 @testable import SyzygyCore
 
-/// Thread-safe accumulator for test assertions.
-private final class Box<T: Sendable>: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _value: T
-    init(_ value: T) { _value = value }
-    var value: T { lock.lock(); defer { lock.unlock() }; return _value }
-    func mutate(_ block: (inout T) -> Void) { lock.lock(); block(&_value); lock.unlock() }
-}
-
 @Suite("Scheduling Tests")
 struct SchedulerTests {
 
@@ -42,12 +33,27 @@ struct SchedulerTests {
         #expect(values.value == [3])
     }
 
-    @Test func throttlerLimitsRate() {
-        let throttler = Throttler(interval: .seconds(10))
+    @Test func throttlerLimitsRateWithFakeClock() {
+        // Uses injected fake clock so the test is deterministic and instant.
+        let fakeNow = Box(ContinuousClock.now)
+        let throttler = Throttler(interval: .seconds(10), clock: { fakeNow.value })
         let count = Box(0)
-        throttler.call { count.mutate { $0 += 1 } }
-        throttler.call { count.mutate { $0 += 1 } }
-        throttler.call { count.mutate { $0 += 1 } }
+        throttler.call { count.mutate { $0 += 1 } }  // allowed — first call
+        throttler.call { count.mutate { $0 += 1 } }  // suppressed — within interval
+        throttler.call { count.mutate { $0 += 1 } }  // suppressed — within interval
         #expect(count.value == 1)
+    }
+
+    @Test func throttlerAllowsCallAfterCooldown() {
+        let fakeNow = Box(ContinuousClock.now)
+        let throttler = Throttler(interval: .seconds(10), clock: { fakeNow.value })
+        let count = Box(0)
+        throttler.call { count.mutate { $0 += 1 } }  // allowed — first call
+        throttler.call { count.mutate { $0 += 1 } }  // suppressed — within interval
+        #expect(count.value == 1)
+        // Advance fake clock past the interval.
+        fakeNow.mutate { $0 = $0.advanced(by: .seconds(11)) }
+        throttler.call { count.mutate { $0 += 1 } }  // allowed — past cooldown
+        #expect(count.value == 2)
     }
 }

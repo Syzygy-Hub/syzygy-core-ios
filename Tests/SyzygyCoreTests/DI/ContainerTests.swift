@@ -2,15 +2,6 @@ import Testing
 import Foundation
 @testable import SyzygyCore
 
-/// Thread-safe accumulator for test assertions.
-private final class Box<T: Sendable>: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _value: T
-    init(_ value: T) { _value = value }
-    var value: T { lock.lock(); defer { lock.unlock() }; return _value }
-    func mutate(_ block: (inout T) -> Void) { lock.lock(); block(&_value); lock.unlock() }
-}
-
 @Suite("DI Container Tests")
 struct ContainerTests {
 
@@ -68,5 +59,54 @@ struct ContainerTests {
         let child = await parent.createChildContainer()
         let value = try await child.resolve(Int.self)
         #expect(value == 99)
+    }
+
+    // MARK: - FIX 16: Scoped lifetime isolation
+
+    @Test func twoChildContainersGetIndependentScopedInstances() async throws {
+        // Each child registers its own scoped factory, so each child's scopedCache
+        // holds an independent instance. Mutating one must not affect the other.
+        let parent = Container()
+        let child1 = await parent.createChildContainer()
+        let child2 = await parent.createChildContainer()
+        // Register separately in each child so each has its own scopedCache entry.
+        await child1.register(Box<Int>.self, lifetime: .scoped) { _ in Box(0) }
+        await child2.register(Box<Int>.self, lifetime: .scoped) { _ in Box(0) }
+        let inst1 = try await child1.resolve(Box<Int>.self)
+        let inst2 = try await child2.resolve(Box<Int>.self)
+        // Mutating inst1 must not affect inst2 — they are independent instances.
+        inst1.mutate { $0 = 42 }
+        #expect(inst1.value == 42)
+        #expect(inst2.value == 0)
+    }
+
+    // MARK: - ITEM 3: resetRegistrations
+
+    @Test func resetRegistrationsRemovesAllRegistrations() async throws {
+        let container = Container()
+        await container.register(Int.self, lifetime: .transient) { _ in 42 }
+        await container.resetRegistrations()
+        do {
+            _ = try await container.resolve(Int.self)
+            Issue.record("Expected notRegistered error after reset")
+        } catch let error as ContainerError {
+            #expect(error == .notRegistered("Int"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test func scopedResolvedThroughParentCachesInParentScope() async throws {
+        // When a child has no local registration, resolution delegates to the parent.
+        // The scoped cache used is the parent's, so the parent always returns the same instance.
+        let parent = Container()
+        await parent.register(Box<Int>.self, lifetime: .scoped) { _ in Box(99) }
+        let child = await parent.createChildContainer()
+        // Resolving through child delegates to parent; parent caches in its own scopedCache.
+        let fromChild = try await child.resolve(Box<Int>.self)
+        let fromParent = try await parent.resolve(Box<Int>.self)
+        // Both must be the same cached instance.
+        fromChild.mutate { $0 = 7 }
+        #expect(fromParent.value == 7)
     }
 }

@@ -41,13 +41,33 @@ public final class InMemoryFeatureFlagProvider: FeatureFlagProvider, @unchecked 
     public init() {}
 
     /// Returns the resolved value for a flag: override > base value > default.
+    ///
+    /// If a stored value cannot be cast to `V`, a diagnostic message is printed and
+    /// resolution falls through to the next tier. This prevents silent wrong-type
+    /// values from being returned while avoiding a crash in production.
     public func value<V: Sendable>(for flag: FeatureFlag<V>) -> V {
         lock.lock()
         defer { lock.unlock() }
-        if let override = overrides[flag.key] as? V {
+        if let rawOverride = overrides[flag.key] {
+            guard let override = rawOverride as? V else {
+                print("[SyzygyCore] FeatureFlagProvider: type mismatch for override of flag '\(flag.key)' — stored \(type(of: rawOverride)), expected \(V.self). Falling through.")
+                // fall through to base value
+                if let rawBase = values[flag.key] {
+                    guard let base = rawBase as? V else {
+                        print("[SyzygyCore] FeatureFlagProvider: type mismatch for base value of flag '\(flag.key)' — stored \(type(of: rawBase)), expected \(V.self). Using default.")
+                        return flag.defaultValue
+                    }
+                    return base
+                }
+                return flag.defaultValue
+            }
             return override
         }
-        if let base = values[flag.key] as? V {
+        if let rawBase = values[flag.key] {
+            guard let base = rawBase as? V else {
+                print("[SyzygyCore] FeatureFlagProvider: type mismatch for base value of flag '\(flag.key)' — stored \(type(of: rawBase)), expected \(V.self). Using default.")
+                return flag.defaultValue
+            }
             return base
         }
         return flag.defaultValue

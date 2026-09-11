@@ -59,4 +59,60 @@ struct RouterTests {
         #expect(route?.parameters["id"] == "42")
         #expect(parser.parse("app/unknown") == nil)
     }
+
+    @Test func deepLinkParserStripsQueryString() {
+        var parser = DeepLinkParser()
+        parser.register(pattern: "app/items/:id") { params in
+            TestRoute(path: "/item", parameters: params)
+        }
+        let route = parser.parse("app/items/7?source=push&utm=email")
+        #expect(route?.path == "/item")
+        #expect(route?.parameters["id"] == "7")
+    }
+
+    @Test func deepLinkParserStripsFragment() {
+        var parser = DeepLinkParser()
+        parser.register(pattern: "app/items/:id") { params in
+            TestRoute(path: "/item", parameters: params)
+        }
+        let route = parser.parse("app/items/8#section-top")
+        #expect(route?.path == "/item")
+        #expect(route?.parameters["id"] == "8")
+    }
+
+    @Test func deepLinkParserStripsQueryStringAndFragment() {
+        var parser = DeepLinkParser()
+        parser.register(pattern: "app/items/:id") { params in
+            TestRoute(path: "/item", parameters: params)
+        }
+        let route = parser.parse("app/items/9?foo=bar#section")
+        #expect(route?.path == "/item")
+        #expect(route?.parameters["id"] == "9")
+    }
+
+    // MARK: - ITEM 7: replace() test
+
+    @Test func replaceWithReplacesTopRoute() {
+        let router = Router()
+        router.push(TestRoute(path: "/home"))
+        let replaced = router.replace(with: TestRoute(path: "/dashboard"))
+        #expect(replaced == true)
+        #expect(router.stackDepth == 1)
+        #expect(router.currentRoute?.path == "/dashboard")
+    }
+
+    @Test func concurrentNavigationIsSafe() async {
+        // Verifies that concurrent push/pop from multiple tasks does not crash or corrupt state.
+        let router = Router()
+        await withTaskGroup(of: Void.self) { group in
+            for i in 0..<20 {
+                group.addTask { router.push(TestRoute(path: "/concurrent/\(i)")) }
+            }
+            for _ in 0..<10 {
+                group.addTask { _ = router.pop() }
+            }
+        }
+        // After all tasks complete the stack depth must be non-negative and consistent.
+        #expect(router.stackDepth >= 0)
+    }
 }

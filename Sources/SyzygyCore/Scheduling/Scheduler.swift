@@ -103,19 +103,24 @@ public final class Debouncer: @unchecked Sendable {
 /// Throttles rapid calls, allowing execution at most once per interval.
 public final class Throttler: @unchecked Sendable {
     private let interval: Duration
+    private let clock: @Sendable () -> ContinuousClock.Instant
     private let lock = NSLock()
     private var lastExecution: ContinuousClock.Instant?
 
     /// Creates a throttler.
-    /// - Parameter interval: The minimum interval between executions.
-    public init(interval: Duration) {
+    /// - Parameters:
+    ///   - interval: The minimum interval between executions.
+    ///   - clock: A closure returning the current instant. Defaults to `ContinuousClock.now`.
+    ///            Inject a fake clock in tests to control time deterministically.
+    public init(interval: Duration, clock: @Sendable @escaping () -> ContinuousClock.Instant = { ContinuousClock.now }) {
         self.interval = interval
+        self.clock = clock
     }
 
     /// Executes the action only if enough time has passed since the last execution.
     /// - Parameter action: The action to throttle.
     public func call(_ action: @escaping @Sendable () -> Void) {
-        let now = ContinuousClock.now
+        let now = clock()
         lock.lock()
         if let last = lastExecution, now - last < interval {
             lock.unlock()
