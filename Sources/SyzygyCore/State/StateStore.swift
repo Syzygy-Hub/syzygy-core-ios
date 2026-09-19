@@ -39,7 +39,8 @@ public final class StateStore<State: Sendable, Action: Sendable>: @unchecked Sen
     /// - Parameters:
     ///   - initial: The initial state value.
     ///   - reducer: A `StateReducer` instance.
-    public convenience init<R: StateReducer>(initial: State, reducer: R) where R.State == State, R.Action == Action, R: Sendable {
+    public convenience init<R: StateReducer>(initial: State, reducer: R)
+    where R.State == State, R.Action == Action, R: Sendable {
         self.init(initial: initial) { state, action in
             reducer.reduce(state: state, action: action)
         }

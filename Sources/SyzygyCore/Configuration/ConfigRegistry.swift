@@ -57,11 +57,15 @@ public final class ConfigRegistry: @unchecked Sendable {
         defer { lock.unlock() }
         if let rawEnv = envValues[_environment]?[key.name] {
             guard let envVal = rawEnv as? V else {
-                print("[SyzygyCore] ConfigRegistry: type mismatch for env-specific value of '\(key.name)' in \(_environment) — stored \(type(of: rawEnv)), expected \(V.self). Falling through.")
+                print("[SyzygyCore] ConfigRegistry: type mismatch for env-specific" +
+                    " value of '\(key.name)' in \(_environment)" +
+                    " — stored \(type(of: rawEnv)), expected \(V.self). Falling through.")
                 // fall through to global
                 if let rawGlobal = globalValues[key.name] {
                     guard let global = rawGlobal as? V else {
-                        print("[SyzygyCore] ConfigRegistry: type mismatch for global value of '\(key.name)' — stored \(type(of: rawGlobal)), expected \(V.self). Using default.")
+                        print("[SyzygyCore] ConfigRegistry: type mismatch for global" +
+                            " value of '\(key.name)' — stored \(type(of: rawGlobal))," +
+                            " expected \(V.self). Using default.")
                         return key.defaultValue
                     }
                     return global
@@ -72,7 +76,9 @@ public final class ConfigRegistry: @unchecked Sendable {
         }
         if let rawGlobal = globalValues[key.name] {
             guard let global = rawGlobal as? V else {
-                print("[SyzygyCore] ConfigRegistry: type mismatch for global value of '\(key.name)' — stored \(type(of: rawGlobal)), expected \(V.self). Using default.")
+                print("[SyzygyCore] ConfigRegistry: type mismatch for global" +
+                    " value of '\(key.name)' — stored \(type(of: rawGlobal))," +
+                    " expected \(V.self). Using default.")
                 return key.defaultValue
             }
             return global

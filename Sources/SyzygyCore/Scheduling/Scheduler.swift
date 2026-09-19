@@ -112,7 +112,10 @@ public final class Throttler: @unchecked Sendable {
     ///   - interval: The minimum interval between executions.
     ///   - clock: A closure returning the current instant. Defaults to `ContinuousClock.now`.
     ///            Inject a fake clock in tests to control time deterministically.
-    public init(interval: Duration, clock: @Sendable @escaping () -> ContinuousClock.Instant = { ContinuousClock.now }) {
+    public init(
+        interval: Duration,
+        clock: @Sendable @escaping () -> ContinuousClock.Instant = { ContinuousClock.now }
+    ) {
         self.interval = interval
         self.clock = clock
     }

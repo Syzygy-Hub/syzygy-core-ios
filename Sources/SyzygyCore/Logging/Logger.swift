@@ -4,12 +4,14 @@
 import Foundation
 import SyzygyFoundation
 
-/// Severity level for log messages, ordered from least to most severe.
-///
-/// Core extends Foundation's `LogLevel` set with `.verbose` for fine-grained
-/// diagnostic output. When routing through Foundation's `LoggerProtocol`,
-/// `.verbose` is mapped to `.debug`.
-public enum LogLevel: Int, Sendable, Comparable, CaseIterable {
+// TODO(v1.2.0): align verbose case with Foundation — pending Foundation 1.2.0
+// TODO(Foundation-v1.2.0): map CoreLogLevel.verbose to
+// Foundation.LogLevel.verbose once that case is added.
+// Until then, verbose dispatches as .debug.
+/// Core-internal severity level that extends Foundation with `.verbose` for
+/// fine-grained diagnostic output.  Not exported publicly; consumers use
+/// Foundation's `LogLevel` (re-exported via the typealias below).
+internal enum CoreLogLevel: Int, Sendable, Comparable, CaseIterable {
     case verbose = 0
     case debug
     case info
@@ -17,10 +19,15 @@ public enum LogLevel: Int, Sendable, Comparable, CaseIterable {
     case error
     case critical
 
-    public static func < (lhs: LogLevel, rhs: LogLevel) -> Bool {
+    internal static func < (lhs: CoreLogLevel, rhs: CoreLogLevel) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
 }
+
+/// Re-exports Foundation's `LogLevel` so Core consumers and Foundation
+/// consumers share the same type and raw values, eliminating the HI-08
+/// ambiguity caused by Core's previously exported 6-case enum.
+public typealias LogLevel = SyzygyFoundation.LogLevel
 
 /// A destination that receives formatted log messages with metadata.
 public protocol LogDestination: Sendable {
@@ -28,7 +35,13 @@ public protocol LogDestination: Sendable {
     ///
     /// Default implementations of `timestamp` and `error` are provided so existing conformers
     /// only need to add the new parameters if they want to handle them.
-    func write(message: String, level: LogLevel, metadata: [String: String], timestamp: SyzygyFoundation.SyzygyTimestamp?, error: (any Error)?)
+    func write(
+        message: String,
+        level: LogLevel,
+        metadata: [String: String],
+        timestamp: SyzygyFoundation.SyzygyTimestamp?,
+        error: (any Error)?
+    )
 }
 
 public extension LogDestination {
@@ -44,7 +57,13 @@ public struct ConsoleLogDestination: LogDestination, Sendable {
     public init() {}
 
     /// Writes a formatted log message to the console, including timestamp and error when present.
-    public func write(message: String, level: LogLevel, metadata: [String: String], timestamp: SyzygyFoundation.SyzygyTimestamp?, error: (any Error)?) {
+    public func write(
+        message: String,
+        level: LogLevel,
+        metadata: [String: String],
+        timestamp: SyzygyFoundation.SyzygyTimestamp?,
+        error: (any Error)?
+    ) {
         let tsString = timestamp.map { " ts=\($0.millisecondsSinceEpoch)" } ?? ""
         let metaString = metadata.isEmpty ? "" : " \(metadata)"
         var line = "[\(level)]\(tsString) \(message)\(metaString)"
@@ -56,9 +75,8 @@ public struct ConsoleLogDestination: LogDestination, Sendable {
 /// Logger that routes messages to multiple destinations with minimum level filtering.
 ///
 /// Also conforms to Foundation's `LoggerProtocol`; entries received via that
-/// contract are translated to Core's `LogLevel` and forwarded through the
-/// existing routing pipeline. Foundation's `debug` level maps to Core's `.debug`
-/// (not `.verbose`).
+/// contract are forwarded directly through the routing pipeline using
+/// Foundation's `LogLevel` (the public `LogLevel` typealias).
 public final class Logger: @unchecked Sendable {
     private let lock = NSLock()
     private var destinations: [(destination: any LogDestination, minLevel: LogLevel)] = []
@@ -70,7 +88,8 @@ public final class Logger: @unchecked Sendable {
     /// - Parameters:
     ///   - dest: The log destination to add.
     ///   - minLevel: The minimum level for messages routed to this destination.
-    public func addDestination(_ dest: any LogDestination, minLevel: LogLevel = .verbose) {
+    ///     Defaults to `.debug` (the most permissive Foundation level).
+    public func addDestination(_ dest: any LogDestination, minLevel: LogLevel = .debug) {
         lock.lock()
         destinations.append((destination: dest, minLevel: minLevel))
         lock.unlock()
@@ -83,12 +102,24 @@ public final class Logger: @unchecked Sendable {
     ///   - metadata: Optional key-value metadata to attach.
     ///   - timestamp: Optional timestamp for the log entry.
     ///   - error: Optional underlying error to attach.
-    public func log(_ level: LogLevel, _ message: String, metadata: [String: String] = [:], timestamp: SyzygyFoundation.SyzygyTimestamp? = nil, error: (any Error)? = nil) {
+    public func log(
+        _ level: LogLevel,
+        _ message: String,
+        metadata: [String: String] = [:],
+        timestamp: SyzygyFoundation.SyzygyTimestamp? = nil,
+        error: (any Error)? = nil
+    ) {
         lock.lock()
         let dests = destinations
         lock.unlock()
         for entry in dests where level >= entry.minLevel {
-            entry.destination.write(message: message, level: level, metadata: metadata, timestamp: timestamp, error: error)
+            entry.destination.write(
+                message: message,
+                level: level,
+                metadata: metadata,
+                timestamp: timestamp,
+                error: error
+            )
         }
     }
 }
@@ -96,23 +127,10 @@ public final class Logger: @unchecked Sendable {
 // MARK: - Foundation LoggerProtocol conformance
 
 extension Logger: LoggerProtocol {
-    /// Receives a Foundation `LogEntry` and routes it through Core's pipeline.
-    ///
-    /// Foundation `LogLevel` → Core `LogLevel` mapping:
-    /// - `.debug`   → `.debug`   (`.verbose` is Core-only and not produced here)
-    /// - `.info`    → `.info`
-    /// - `.warning` → `.warning`
-    /// - `.error`   → `.error`
-    /// - `.critical`→ `.critical`
+    /// Receives a Foundation `LogEntry` and routes it directly through Core's
+    /// pipeline.  Because `LogLevel` is now a typealias for
+    /// `SyzygyFoundation.LogLevel`, no level mapping is required.
     public func log(_ entry: SyzygyFoundation.LogEntry) {
-        let coreLevel: LogLevel
-        switch entry.level {
-        case .debug:    coreLevel = .debug
-        case .info:     coreLevel = .info
-        case .warning:  coreLevel = .warning
-        case .error:    coreLevel = .error
-        case .critical: coreLevel = .critical
-        }
-        log(coreLevel, entry.message, metadata: entry.metadata, timestamp: entry.timestamp, error: entry.error)
+        log(entry.level, entry.message, metadata: entry.metadata, timestamp: entry.timestamp, error: entry.error)
     }
 }

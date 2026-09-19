@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.2.0] - 2026-09-18
+
+### Changed
+- `LogLevel` now re-exported from Foundation — local duplicate removed
+- `CoreLogLevel` renamed from `_CoreLogLevel` (underscore prefix removed per SwiftLint type_name rule)
+- `Container`: extracted helpers to reduce cyclomatic complexity
+- Multiple files: line_length fixes, trailing_comma fix, identifier_name fixes (`i` → `attempt`, `index`)
+- Foundation dependency updated to 1.2.0
+
 ## [1.1.0] - 2026-09-11
 
 ### Fixed
@@ -22,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FIX 21: Box<T> test helper deduplicated into Tests/SyzygyCoreTests/TestSupport/Box.swift
 - FIX 22: Silent as? casts in InMemoryFeatureFlagProvider and ConfigRegistry replaced with guard-let + diagnostic message on type mismatch
 
+[Unreleased]: https://github.com/Syzygy-Hub/syzygy-core-ios/compare/1.2.0...HEAD
+[1.2.0]: https://github.com/Syzygy-Hub/syzygy-core-ios/compare/1.1.0...1.2.0
 [1.1.0]: https://github.com/Syzygy-Hub/syzygy-core-ios/releases/tag/1.1.0
 
 ## [1.0.0] - 2026-09-05
