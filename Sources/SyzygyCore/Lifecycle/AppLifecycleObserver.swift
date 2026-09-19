@@ -52,14 +52,16 @@ public final class AppLifecycleTracker: @unchecked Sendable {
     /// Observation tokens are kept alive on the returned tracker for its lifetime.
     /// - Parameter notificationCenter: The notification center to observe (default: `.default`).
     /// - Returns: A configured `AppLifecycleTracker`.
-    public static func fromNotificationCenter(_ notificationCenter: NotificationCenter = .default) -> AppLifecycleTracker {
+    public static func fromNotificationCenter(
+        _ notificationCenter: NotificationCenter = .default
+    ) -> AppLifecycleTracker {
         let tracker = AppLifecycleTracker()
         let pairs: [(Notification.Name, AppLifecycleState)] = [
-            (UIApplication.didBecomeActiveNotification,    .active),
-            (UIApplication.willResignActiveNotification,   .inactive),
+            (UIApplication.didBecomeActiveNotification, .active),
+            (UIApplication.willResignActiveNotification, .inactive),
             (UIApplication.didEnterBackgroundNotification, .background),
-            (UIApplication.willEnterForegroundNotification,.inactive),
-            (UIApplication.willTerminateNotification,      .terminated),
+            (UIApplication.willEnterForegroundNotification, .inactive),
+            (UIApplication.willTerminateNotification, .terminated)
         ]
         let tokens: [Any] = pairs.map { (name, state) in
             notificationCenter.addObserver(forName: name, object: nil, queue: nil) { [weak tracker] _ in

@@ -14,21 +14,40 @@ struct LoggerTests {
         let error: (any Error)?
     }
 
+    struct SpyMessage: Sendable {
+        let text: String
+        let level: SyzygyCore.LogLevel
+        let metadata: [String: String]
+    }
+
     final class SpyDestination: LogDestination, @unchecked Sendable {
-        var messages: [(String, SyzygyCore.LogLevel, [String: String])] = []
+        var messages: [SpyMessage] = []
         var entries: [CapturedEntry] = []
-        func write(message: String, level: SyzygyCore.LogLevel, metadata: [String: String], timestamp: SyzygyFoundation.SyzygyTimestamp?, error: (any Error)?) {
-            messages.append((message, level, metadata))
-            entries.append(CapturedEntry(message: message, level: level, metadata: metadata, timestamp: timestamp, error: error))
+        func write(
+            message: String,
+            level: SyzygyCore.LogLevel,
+            metadata: [String: String],
+            timestamp: SyzygyFoundation.SyzygyTimestamp?,
+            error: (any Error)?
+        ) {
+            messages.append(SpyMessage(text: message, level: level, metadata: metadata))
+            entries.append(CapturedEntry(
+                message: message,
+                level: level,
+                metadata: metadata,
+                timestamp: timestamp,
+                error: error
+            ))
         }
     }
 
     @Test func logLevelOrdering() {
-        #expect(SyzygyCore.LogLevel.verbose < SyzygyCore.LogLevel.debug)
-        #expect(SyzygyCore.LogLevel.debug < SyzygyCore.LogLevel.info)
-        #expect(SyzygyCore.LogLevel.info < SyzygyCore.LogLevel.warning)
-        #expect(SyzygyCore.LogLevel.warning < SyzygyCore.LogLevel.error)
-        #expect(SyzygyCore.LogLevel.error < SyzygyCore.LogLevel.critical)
+        // CoreLogLevel ordering (includes verbose; internal to SyzygyCore)
+        #expect(SyzygyCore.CoreLogLevel.verbose < SyzygyCore.CoreLogLevel.debug)
+        #expect(SyzygyCore.CoreLogLevel.debug < SyzygyCore.CoreLogLevel.info)
+        #expect(SyzygyCore.CoreLogLevel.info < SyzygyCore.CoreLogLevel.warning)
+        #expect(SyzygyCore.CoreLogLevel.warning < SyzygyCore.CoreLogLevel.error)
+        #expect(SyzygyCore.CoreLogLevel.error < SyzygyCore.CoreLogLevel.critical)
     }
 
     @Test func loggerRoutesToDestination() {
@@ -37,8 +56,8 @@ struct LoggerTests {
         logger.addDestination(spy)
         logger.log(.info, "hello", metadata: ["key": "val"])
         #expect(spy.messages.count == 1)
-        #expect(spy.messages[0].0 == "hello")
-        #expect(spy.messages[0].2 == ["key": "val"])
+        #expect(spy.messages[0].text == "hello")
+        #expect(spy.messages[0].metadata == ["key": "val"])
     }
 
     @Test func minLevelFilters() {
@@ -55,7 +74,7 @@ struct LoggerTests {
         let spy1 = SpyDestination()
         let spy2 = SpyDestination()
         let logger = Logger()
-        logger.addDestination(spy1, minLevel: .verbose)
+        logger.addDestination(spy1, minLevel: .debug)
         logger.addDestination(spy2, minLevel: .error)
         logger.log(.info, "info msg")
         #expect(spy1.messages.count == 1)
@@ -114,7 +133,12 @@ struct LoggerTests {
         let spy = SpyDestination()
         let logger = Logger()
         logger.addDestination(spy)
-        let entry = SyzygyFoundation.LogEntry(level: .info, message: "meta-test", timestamp: .now(), metadata: ["key": "value"])
+        let entry = SyzygyFoundation.LogEntry(
+            level: .info,
+            message: "meta-test",
+            timestamp: .now(),
+            metadata: ["key": "value"]
+        )
         logger.log(entry)
         #expect(spy.entries[0].metadata == ["key": "value"])
     }
@@ -127,5 +151,22 @@ struct LoggerTests {
         let entry = SyzygyFoundation.LogEntry(level: .info, message: "ts-test", timestamp: ts)
         logger.log(entry)
         #expect(spy.entries[0].timestamp?.millisecondsSinceEpoch == 1_000_000)
+    }
+
+    // MARK: - MED-10: Concurrency
+
+    @Test func testConcurrentLogCallsFromMultipleTasks() async {
+        let logger = Logger()
+        let spy = SpyDestination()
+        logger.addDestination(spy)
+        await withTaskGroup(of: Void.self) { group in
+            for attempt in 0..<10 {
+                group.addTask {
+                    logger.log(.debug, "message \(attempt)")
+                }
+            }
+        }
+        // No crash = pass; all 10 messages must have been received
+        #expect(spy.messages.count == 10)
     }
 }

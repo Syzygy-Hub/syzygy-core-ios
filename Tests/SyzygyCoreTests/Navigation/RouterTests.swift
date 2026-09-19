@@ -105,8 +105,8 @@ struct RouterTests {
         // Verifies that concurrent push/pop from multiple tasks does not crash or corrupt state.
         let router = Router()
         await withTaskGroup(of: Void.self) { group in
-            for i in 0..<20 {
-                group.addTask { router.push(TestRoute(path: "/concurrent/\(i)")) }
+            for index in 0..<20 {
+                group.addTask { router.push(TestRoute(path: "/concurrent/\(index)")) }
             }
             for _ in 0..<10 {
                 group.addTask { _ = router.pop() }

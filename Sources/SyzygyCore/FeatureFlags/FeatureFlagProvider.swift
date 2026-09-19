@@ -50,11 +50,15 @@ public final class InMemoryFeatureFlagProvider: FeatureFlagProvider, @unchecked 
         defer { lock.unlock() }
         if let rawOverride = overrides[flag.key] {
             guard let override = rawOverride as? V else {
-                print("[SyzygyCore] FeatureFlagProvider: type mismatch for override of flag '\(flag.key)' — stored \(type(of: rawOverride)), expected \(V.self). Falling through.")
+                print("[SyzygyCore] FeatureFlagProvider: type mismatch for override" +
+                    " of flag '\(flag.key)' — stored \(type(of: rawOverride))," +
+                    " expected \(V.self). Falling through.")
                 // fall through to base value
                 if let rawBase = values[flag.key] {
                     guard let base = rawBase as? V else {
-                        print("[SyzygyCore] FeatureFlagProvider: type mismatch for base value of flag '\(flag.key)' — stored \(type(of: rawBase)), expected \(V.self). Using default.")
+                        print("[SyzygyCore] FeatureFlagProvider: type mismatch for base" +
+                            " value of flag '\(flag.key)' — stored \(type(of: rawBase))," +
+                            " expected \(V.self). Using default.")
                         return flag.defaultValue
                     }
                     return base
@@ -65,7 +69,9 @@ public final class InMemoryFeatureFlagProvider: FeatureFlagProvider, @unchecked 
         }
         if let rawBase = values[flag.key] {
             guard let base = rawBase as? V else {
-                print("[SyzygyCore] FeatureFlagProvider: type mismatch for base value of flag '\(flag.key)' — stored \(type(of: rawBase)), expected \(V.self). Using default.")
+                print("[SyzygyCore] FeatureFlagProvider: type mismatch for base" +
+                    " value of flag '\(flag.key)' — stored \(type(of: rawBase))," +
+                    " expected \(V.self). Using default.")
                 return flag.defaultValue
             }
             return base
