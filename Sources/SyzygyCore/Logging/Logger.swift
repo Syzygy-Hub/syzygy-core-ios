@@ -4,10 +4,8 @@
 import Foundation
 import SyzygyFoundation
 
-// TODO(v1.2.0): align verbose case with Foundation — pending Foundation 1.2.0
-// TODO(Foundation-v1.2.0): map CoreLogLevel.verbose to
-// Foundation.LogLevel.verbose once that case is added.
-// Until then, verbose dispatches as .debug.
+// TODO(Foundation-future): verbose level not yet available in Foundation — add when Foundation ships it
+// TODO(Foundation-future): verbose level not yet available in Foundation — add when Foundation ships it
 /// Core-internal severity level that extends Foundation with `.verbose` for
 /// fine-grained diagnostic output.  Not exported publicly; consumers use
 /// Foundation's `LogLevel` (re-exported via the typealias below).

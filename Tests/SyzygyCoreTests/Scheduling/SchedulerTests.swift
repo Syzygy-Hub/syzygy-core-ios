@@ -44,6 +44,29 @@ struct SchedulerTests {
         #expect(count.value == 1)
     }
 
+    @Test func debouncerCancelPreventsAction() async throws {
+        let debouncer = Debouncer(delay: .milliseconds(50))
+        let executed = Box(false)
+        // Schedule an action, then replace it with a no-op — the second call
+        // cancels the first pending task (that is how Debouncer cancels: each
+        // new call cancels the previous one).
+        debouncer.call { executed.mutate { $0 = true } }
+        debouncer.call { /* no-op replacement */ }
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(!executed.value)
+    }
+
+    @Test func throttlerDoesNotReExecuteDuringCooldown() {
+        let fakeNow = Box(ContinuousClock.now)
+        let throttler = Throttler(interval: .seconds(10), clock: { fakeNow.value })
+        let count = Box(0)
+        throttler.call { count.mutate { $0 += 1 } }  // allowed — first call
+        throttler.call { count.mutate { $0 += 1 } }  // suppressed — within cooldown
+        throttler.call { count.mutate { $0 += 1 } }  // suppressed — still within cooldown
+        // Count must remain 1; the action is not re-executed during the cooldown period.
+        #expect(count.value == 1)
+    }
+
     @Test func throttlerAllowsCallAfterCooldown() {
         let fakeNow = Box(ContinuousClock.now)
         let throttler = Throttler(interval: .seconds(10), clock: { fakeNow.value })

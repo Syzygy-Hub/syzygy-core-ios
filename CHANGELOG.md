@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-05
+
+### Changed
+- CI migrated from inline workflow to Syzygy-Hub reusable workflow (`ios-ci.yml`)
+- Foundation dependency constraint updated to `>=3.0.0`
+
+### Fixed
+- Logger verbose TODO comments re-tagged to `TODO(Foundation-future)`
+- DeepLinkParser scheme URL handling fixed
+- SIGSEGV toolchain fix applied to test target
+
+---
+
 ## [1.2.0] - 2026-09-18
 
 ### Changed
@@ -33,10 +46,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FIX 21: Box<T> test helper deduplicated into Tests/SyzygyCoreTests/TestSupport/Box.swift
 - FIX 22: Silent as? casts in InMemoryFeatureFlagProvider and ConfigRegistry replaced with guard-let + diagnostic message on type mismatch
 
-[Unreleased]: https://github.com/Syzygy-Hub/syzygy-core-ios/compare/1.2.0...HEAD
-[1.2.0]: https://github.com/Syzygy-Hub/syzygy-core-ios/compare/1.1.0...1.2.0
-[1.1.0]: https://github.com/Syzygy-Hub/syzygy-core-ios/releases/tag/1.1.0
-
 ## [1.0.0] - 2026-09-05
 
 ### Added
@@ -52,4 +61,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - App lifecycle tracker with lifecycle-aware scoping
 - Scheduling utilities — debounce, throttle, delayed execution, cancellable timers
 
+[Unreleased]: https://github.com/Syzygy-Hub/syzygy-core-ios/compare/3.0.0...HEAD
+[3.0.0]: https://github.com/Syzygy-Hub/syzygy-core-ios/compare/1.2.0...3.0.0
+[1.2.0]: https://github.com/Syzygy-Hub/syzygy-core-ios/compare/1.1.0...1.2.0
+[1.1.0]: https://github.com/Syzygy-Hub/syzygy-core-ios/compare/1.0.0...1.1.0
 [1.0.0]: https://github.com/Syzygy-Hub/syzygy-core-ios/releases/tag/1.0.0

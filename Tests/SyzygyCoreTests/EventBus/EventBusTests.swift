@@ -47,6 +47,24 @@ struct EventBusTests {
         #expect(token.isCancelled)
     }
 
+    @Test func concurrentPublishFromTenTasksAllReceived() async {
+        let bus = EventBus()
+        let received = Box<[Int]>([])
+        let token = bus.subscribe(to: TestEvent.self) { event in
+            received.mutate { $0.append(event.value) }
+        }
+        await withTaskGroup(of: Void.self) { group in
+            for index in 0..<10 {
+                group.addTask {
+                    bus.publish(TestEvent(value: index))
+                }
+            }
+        }
+        await Task.yield()
+        #expect(received.value.count == 10)
+        _ = token
+    }
+
     @Test func tokenDeinitCancelsSubscription() async {
         let bus = EventBus()
         let received = Box<[Int]>([])

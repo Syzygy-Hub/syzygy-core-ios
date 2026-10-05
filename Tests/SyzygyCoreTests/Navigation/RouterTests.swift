@@ -101,6 +101,36 @@ struct RouterTests {
         #expect(router.currentRoute?.path == "/dashboard")
     }
 
+    @Test func replaceOnEmptyStackPushesRoute() {
+        let router = Router()
+        #expect(router.stackDepth == 0)
+        let result = router.replace(with: TestRoute(path: "/first"))
+        // replace() on an empty stack should push the route (stack depth becomes 1)
+        #expect(result == true)
+        #expect(router.stackDepth == 1)
+        #expect(router.currentRoute?.path == "/first")
+    }
+
+    @Test func deepLinkParserWithSchemeURL() {
+        var parser = DeepLinkParser()
+        parser.register(pattern: "host/user/:id") { params in
+            TestRoute(path: "/user", parameters: params)
+        }
+        // Full scheme URL — parser strips scheme prefix before matching
+        let route = parser.parse("myapp://host/user/42")
+        #expect(route?.path == "/user")
+        #expect(route?.parameters["id"] == "42")
+    }
+
+    @Test func deepLinkParserWithNonMatchingURLReturnsNil() {
+        var parser = DeepLinkParser()
+        parser.register(pattern: "host/user/:id") { params in
+            TestRoute(path: "/user", parameters: params)
+        }
+        let route = parser.parse("myapp://host/product/42")
+        #expect(route == nil)
+    }
+
     @Test func concurrentNavigationIsSafe() async {
         // Verifies that concurrent push/pop from multiple tasks does not crash or corrupt state.
         let router = Router()
