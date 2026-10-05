@@ -8,7 +8,7 @@ let package = Package(
         .library(name: "SyzygyCore", targets: ["SyzygyCore"])
     ],
     dependencies: [
-        .package(url: "https://github.com/Syzygy-Hub/syzygy-foundation-ios", from: "1.2.0")
+        .package(url: "https://github.com/Syzygy-Hub/syzygy-foundation-ios", from: "3.0.0")
     ],
     targets: [
         .target(
@@ -21,7 +21,10 @@ let package = Package(
         .testTarget(
             name: "SyzygyCoreTests",
             dependencies: ["SyzygyCore"],
-            path: "Tests/SyzygyCoreTests"
+            path: "Tests/SyzygyCoreTests",
+            swiftSettings: [
+                .unsafeFlags(["-Xfrontend", "-disable-reflection-metadata"])
+            ]
         )
     ]
 )

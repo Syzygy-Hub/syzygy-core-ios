@@ -1,13 +1,13 @@
 {
-  "originHash" : "cf53ff0b901d56d6a80e0cd21c20586eae941e8f92f5172df239222135a0db06",
+  "originHash" : "1b1a4847912cc3cd0c7fbd253be18946119e0ffe5b610bffe95d1ae241f18d48",
   "pins" : [
     {
       "identity" : "syzygy-foundation-ios",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Syzygy-Hub/syzygy-foundation-ios",
       "state" : {
-        "revision" : "93b47869c991aa3b7dfaa46da720e75cf7cd7c68",
-        "version" : "1.2.0"
+        "revision" : "26cdd82be96d302748d7d3fb8b721e1eb336f21e",
+        "version" : "3.0.0"
       }
     }
   ],

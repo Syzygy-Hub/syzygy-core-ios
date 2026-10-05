@@ -117,8 +117,9 @@ public struct DeepLinkParser: Sendable {
     /// - Parameter url: The URL string to parse.
     /// - Returns: A matching `Route` with extracted parameters, or `nil` if no pattern matches.
     public func parse(_ url: String) -> (any Route)? {
-        // Strip fragment first, then query string.
+        // Strip scheme (e.g. "myapp://"), fragment, then query string.
         var path = url
+        if let schemeRange = path.range(of: "://") { path = String(path[schemeRange.upperBound...]) }
         if let hashIdx = path.firstIndex(of: "#") { path = String(path[path.startIndex..<hashIdx]) }
         if let queryIdx = path.firstIndex(of: "?") { path = String(path[path.startIndex..<queryIdx]) }
         let urlSegments = path.split(separator: "/").map(String.init)
