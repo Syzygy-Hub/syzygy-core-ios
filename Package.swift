@@ -21,10 +21,7 @@ let package = Package(
         .testTarget(
             name: "SyzygyCoreTests",
             dependencies: ["SyzygyCore"],
-            path: "Tests/SyzygyCoreTests",
-            swiftSettings: [
-                .define("SWIFT_TESTING_DISABLE_CRASH_REPORTING")
-            ]
+            path: "Tests/SyzygyCoreTests"
         )
     ]
 )
