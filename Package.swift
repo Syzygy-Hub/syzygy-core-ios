@@ -23,7 +23,7 @@ let package = Package(
             dependencies: ["SyzygyCore"],
             path: "Tests/SyzygyCoreTests",
             swiftSettings: [
-                .unsafeFlags(["-Xfrontend", "-disable-reflection-metadata"])
+                .define("SWIFT_TESTING_DISABLE_CRASH_REPORTING")
             ]
         )
     ]
